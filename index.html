@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      (function() {
+        try {
+          var targets = [];
+          if (typeof window !== 'undefined') targets.push(window);
+          if (typeof globalThis !== 'undefined') targets.push(globalThis);
+          if (typeof self !== 'undefined') targets.push(self);
+          
+          var uniqueTargets = [];
+          for (var i = 0; i < targets.length; i++) {
+            if (uniqueTargets.indexOf(targets[i]) === -1) {
+              uniqueTargets.push(targets[i]);
+            }
+          }
+
+          for (var j = 0; j < uniqueTargets.length; j++) {
+            var target = uniqueTargets[j];
+            if (target && target.fetch) {
+              (function(t) {
+                var currentFetch = t.fetch;
+                Object.defineProperty(t, 'fetch', {
+                  get: function() { return currentFetch; },
+                  set: function(val) { currentFetch = val; },
+                  configurable: true,
+                  enumerable: true
+                });
+              })(target);
+            }
+          }
+
+          if (typeof Window !== 'undefined' && Window.prototype) {
+            var proto = Window.prototype;
+            var desc = Object.getOwnPropertyDescriptor(proto, 'fetch');
+            if (!desc || desc.configurable) {
+              var protoFetch = proto.fetch || (window && window.fetch);
+              if (protoFetch) {
+                Object.defineProperty(proto, 'fetch', {
+                  get: function() { return protoFetch; },
+                  set: function(val) { protoFetch = val; },
+                  configurable: true,
+                  enumerable: true
+                });
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Fetch safeguard failed:', e);
+        }
+      })();
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Google AI Studio App</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

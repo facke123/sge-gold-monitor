@@ -1,0 +1,9 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "gold-prices-sge"
+main = "src/worker.ts"
+compatibility_date = "2026-01-01"
+compatibility_flags = [ "nodejs_compat" ]
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"

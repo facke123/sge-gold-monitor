@@ -1,0 +1,6 @@
+{
+  "name": "沪金实时跟踪与价格提醒",
+  "description": "专为沪金 AU99.99 和 AU(T+D) 打造的极简实时行情监控、高度自定义价格触发警报、黄金持仓计算器及 AI 黄金市场智能研判工具。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
