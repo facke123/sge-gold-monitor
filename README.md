@@ -4,6 +4,12 @@
 
 项目全面适配了 **Cloudflare Workers** 服务端架构（使用 [Hono](https://hono.dev/) 框架），实现了前端 React (Vite) 静态资源与后端 API 的前后端一体化极速托管部署。
 
+## 🖥️ 运行效果截图
+
+| 📈 黄金实时行情主控面板 | 🤖 Gemini AI 智能分析研判 |
+| :---: | :---: |
+| ![黄金实时行情主控面板](assets/dashboard_screenshot.jpg) | ![Gemini AI 智能分析研判](assets/ai_report_screenshot.jpg) |
+
 ---
 
 ## 🌟 核心功能
