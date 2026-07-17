@@ -570,6 +570,11 @@ app.post('/api/gold/send-alert', async (c) => {
       const fromEmail = c.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
       const fromSender = `SGE 沪金监控助手 <${fromEmail}>`;
 
+      // Parse email string (comma-separated) into an array of strings for Resend API compatibility
+      const toEmails = typeof email === 'string'
+        ? email.split(',').map(e => e.trim()).filter(Boolean)
+        : (Array.isArray(email) ? email : [email]);
+
       const response = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
@@ -578,7 +583,7 @@ app.post('/api/gold/send-alert', async (c) => {
         },
         body: JSON.stringify({
           from: fromSender,
-          to: email,
+          to: toEmails,
           subject: subject || '沪金监控警报触发',
           text: text || '',
           html: html || '',
