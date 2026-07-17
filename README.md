@@ -8,7 +8,7 @@
 
 | 📈 黄金实时行情主控面板 | 🤖 Gemini AI 智能分析研判 |
 | :---: | :---: |
-| ![黄金实时行情主控面板](assets/dashboard_screenshot.jpg) | ![Gemini AI 智能分析研判](assets/ai_report_screenshot.jpg) |
+| ![黄金实时行情主控面板](assets/1784278472285.png) | ![Gemini AI 智能分析研判](assets/1784278523601.png) |
 
 ---
 
