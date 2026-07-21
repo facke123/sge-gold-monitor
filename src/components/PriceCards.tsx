@@ -117,7 +117,7 @@ export default function PriceCards({
                   : 'text-gray-900 dark:text-gray-100'
               }`}
             >
-              {quote.price.toFixed(2)}
+              {quote.price > 0 ? quote.price.toFixed(2) : '--.--'}
             </span>
             <span className="text-xs font-semibold text-gray-400 tracking-wider">CNY/克</span>
           </div>
@@ -130,7 +130,7 @@ export default function PriceCards({
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">买一价 (BID)</span>
               </div>
               <span className="text-lg font-bold font-mono text-emerald-600 mt-0.5 block">
-                {quote.buy1 ? quote.buy1.toFixed(2) : (quote.price - 0.03).toFixed(2)}
+                {quote.price > 0 ? (quote.buy1 ? quote.buy1.toFixed(2) : (quote.price - 0.03).toFixed(2)) : '--.--'}
               </span>
             </div>
             <div className="border-l border-gray-100 dark:border-gray-800 pl-3">
@@ -139,7 +139,7 @@ export default function PriceCards({
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">卖一价 (ASK)</span>
               </div>
               <span className="text-lg font-bold font-mono text-rose-600 mt-0.5 block">
-                {quote.sell1 ? quote.sell1.toFixed(2) : (quote.price + 0.03).toFixed(2)}
+                {quote.price > 0 ? (quote.sell1 ? quote.sell1.toFixed(2) : (quote.price + 0.03).toFixed(2)) : '--.--'}
               </span>
             </div>
           </div>
@@ -148,19 +148,27 @@ export default function PriceCards({
           <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-gray-100 dark:border-gray-800 pt-4 mb-4">
             <div>
               <span className="text-[11px] font-bold text-gray-400 block tracking-wider uppercase">开盘价</span>
-              <span className="text-sm font-semibold font-mono text-gray-700 dark:text-gray-300 mt-0.5 block">{quote.open.toFixed(2)}</span>
+              <span className="text-sm font-semibold font-mono text-gray-700 dark:text-gray-300 mt-0.5 block">
+                {quote.open > 0 ? quote.open.toFixed(2) : '--.--'}
+              </span>
             </div>
             <div>
               <span className="text-[11px] font-bold text-gray-400 block tracking-wider uppercase">昨收价</span>
-              <span className="text-sm font-semibold font-mono text-gray-700 dark:text-gray-300 mt-0.5 block">{quote.lastSettlement.toFixed(2)}</span>
+              <span className="text-sm font-semibold font-mono text-gray-700 dark:text-gray-300 mt-0.5 block">
+                {quote.lastSettlement > 0 ? quote.lastSettlement.toFixed(2) : '--.--'}
+              </span>
             </div>
             <div>
               <span className="text-[11px] font-bold text-gray-400 block tracking-wider uppercase">最高价</span>
-              <span className="text-sm font-semibold font-mono text-rose-500 mt-0.5 block">{quote.high.toFixed(2)}</span>
+              <span className="text-sm font-semibold font-mono text-rose-500 mt-0.5 block">
+                {quote.high > 0 ? quote.high.toFixed(2) : '--.--'}
+              </span>
             </div>
             <div>
               <span className="text-[11px] font-bold text-gray-400 block tracking-wider uppercase">最低价</span>
-              <span className="text-sm font-semibold font-mono text-emerald-500 mt-0.5 block">{quote.low.toFixed(2)}</span>
+              <span className="text-sm font-semibold font-mono text-emerald-500 mt-0.5 block">
+                {quote.low > 0 ? quote.low.toFixed(2) : '--.--'}
+              </span>
             </div>
           </div>
         </div>
@@ -173,7 +181,9 @@ export default function PriceCards({
           </div>
           <div>
             <span className="text-gray-300">成交量 </span>
-            <span className="font-mono text-gray-600 dark:text-gray-400 font-semibold">{(quote.volume / 1000).toFixed(1)}k 手</span>
+            <span className="font-mono text-gray-600 dark:text-gray-400 font-semibold">
+              {quote.volume > 0 ? `${(quote.volume / 1000).toFixed(1)}k 手` : '--'}
+            </span>
           </div>
         </div>
       </div>

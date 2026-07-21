@@ -15,49 +15,39 @@ import MarketStatsWidget from './components/MarketStatsWidget';
 import { audioSynth } from './utils/audio';
 import { Bell, Sparkles, AlertTriangle, X } from 'lucide-react';
 
-// Generates a realistic historical gold quote price path
-const generateHistory = (base: number, length: number, volatility: number = 0.002): number[] => {
-  const result: number[] = [base];
-  for (let i = 1; i < length; i++) {
-    const change = base * (Math.random() - 0.49) * volatility;
-    result.push(parseFloat((result[i - 1] + change).toFixed(2)));
-  }
-  return result;
-};
-
-// Initial simulated quotes
+// Initial empty quotes (populated on first API fetch)
 const INITIAL_AU9999: GoldQuote = {
   type: 'AU9999',
   name: '沪金 AU99.99',
-  price: 622.55,
-  open: 620.80,
-  high: 623.90,
-  low: 620.10,
-  lastSettlement: 620.25,
-  change: 2.30,
-  changePercent: 0.37,
-  volume: 18450,
-  time: new Date().toLocaleTimeString(),
-  history1D: [620.80, 621.10, 620.95, 621.40, 621.30, 621.80, 621.65, 622.05, 622.40, 622.15, 622.55],
-  history1W: generateHistory(618, 7, 0.006),
-  history1M: generateHistory(612, 30, 0.012),
+  price: 0,
+  open: 0,
+  high: 0,
+  low: 0,
+  lastSettlement: 0,
+  change: 0,
+  changePercent: 0,
+  volume: 0,
+  time: '--:--:--',
+  history1D: [],
+  history1W: [],
+  history1M: [],
 };
 
 const INITIAL_AUTD: GoldQuote = {
   type: 'AUTD',
   name: '沪金 AU(T+D)',
-  price: 621.80,
-  open: 620.10,
-  high: 622.95,
-  low: 619.50,
-  lastSettlement: 619.60,
-  change: 2.20,
-  changePercent: 0.36,
-  volume: 32400,
-  time: new Date().toLocaleTimeString(),
-  history1D: [620.10, 620.50, 620.25, 620.90, 620.75, 621.20, 621.05, 621.50, 621.90, 621.55, 621.80],
-  history1W: generateHistory(617, 7, 0.006),
-  history1M: generateHistory(611, 30, 0.012),
+  price: 0,
+  open: 0,
+  high: 0,
+  low: 0,
+  lastSettlement: 0,
+  change: 0,
+  changePercent: 0,
+  volume: 0,
+  time: '--:--:--',
+  history1D: [],
+  history1W: [],
+  history1M: [],
 };
 
 export default function App() {

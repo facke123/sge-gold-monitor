@@ -300,7 +300,7 @@ export default function AlertManager({
                 <input
                   type="number"
                   step="0.01"
-                  placeholder={criteria.includes('M') ? '0.50' : '620.00'}
+                  placeholder={criteria.includes('M') ? '0.50' : (currentPrice > 0 ? currentPrice.toFixed(2) : '目标价格')}
                   value={targetValue}
                   onChange={(e) => setTargetValue(e.target.value)}
                   className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-100 text-xs rounded-xl p-2.5 pr-12 font-mono focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
