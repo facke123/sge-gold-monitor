@@ -680,6 +680,23 @@ app.post('/api/gold/send-alert', async (req, res) => {
   }
 });
 
+let storedLocalRulesState: any = null;
+
+app.get('/api/gold/rules', (req, res) => {
+  res.json(storedLocalRulesState || { rules: [], alertEmail: '', nightMode: 'NORMAL', emailEnabled: true, updatedAt: Date.now() });
+});
+
+app.post('/api/gold/rules', (req, res) => {
+  storedLocalRulesState = {
+    rules: req.body.rules || [],
+    alertEmail: req.body.alertEmail || '',
+    nightMode: req.body.nightMode || 'NORMAL',
+    emailEnabled: req.body.emailEnabled ?? true,
+    updatedAt: Date.now(),
+  };
+  res.json({ success: true, count: storedLocalRulesState.rules.length });
+});
+
 // Configure Vite middleware or static files
 async function setupServer() {
   if (process.env.NODE_ENV !== 'production') {

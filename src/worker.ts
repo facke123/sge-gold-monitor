@@ -16,6 +16,7 @@ type Bindings = {
   SMTP_SECURE?: string;
   RESEND_API_KEY?: string;
   RESEND_FROM_EMAIL?: string;
+  GOLD_RULES_KV?: any;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -672,4 +673,185 @@ app.post('/api/gold/send-alert', async (c) => {
   }
 });
 
-export default app;
+// Interface for background rules state
+interface SavedRuleState {
+  rules: any[];
+  alertEmail: string;
+  nightMode: 'NORMAL' | 'MUTE' | 'MAJOR_ONLY';
+  emailEnabled: boolean;
+  updatedAt: number;
+}
+
+let storedRuleState: SavedRuleState | null = null;
+
+// Get cloud synced alert rules
+app.get('/api/gold/rules', async (c) => {
+  if (c.env.GOLD_RULES_KV) {
+    try {
+      const val = await c.env.GOLD_RULES_KV.get('rule_state', 'json');
+      if (val) return c.json(val);
+    } catch (e) {
+      console.error('KV get error:', e);
+    }
+  }
+  return c.json(storedRuleState || { rules: [], alertEmail: '', nightMode: 'NORMAL', emailEnabled: true, updatedAt: Date.now() });
+});
+
+// Sync alert rules to cloud for off-page background monitoring
+app.post('/api/gold/rules', async (c) => {
+  const data = await c.req.json();
+  storedRuleState = {
+    rules: data.rules || [],
+    alertEmail: data.alertEmail || '',
+    nightMode: data.nightMode || 'NORMAL',
+    emailEnabled: data.emailEnabled ?? true,
+    updatedAt: Date.now(),
+  };
+
+  if (c.env.GOLD_RULES_KV) {
+    try {
+      await c.env.GOLD_RULES_KV.put('rule_state', JSON.stringify(storedRuleState));
+    } catch (e) {
+      console.error('KV put error:', e);
+    }
+  }
+
+  return c.json({ success: true, count: storedRuleState.rules.length });
+});
+
+// Background Cloudflare Cron monitor execution function
+async function checkBackgroundRulesAndSend(env: Bindings) {
+  let ruleState: SavedRuleState | null = storedRuleState;
+
+  if (env.GOLD_RULES_KV) {
+    try {
+      const val = await env.GOLD_RULES_KV.get('rule_state', 'json');
+      if (val) ruleState = val as SavedRuleState;
+    } catch (e) {
+      console.error('KV fetch error during background check:', e);
+    }
+  }
+
+  if (!ruleState || !ruleState.emailEnabled || !ruleState.alertEmail || !ruleState.rules || ruleState.rules.length === 0) {
+    return;
+  }
+
+  const activeRules = ruleState.rules.filter((r: any) => r.active && !r.isTriggered);
+  if (activeRules.length === 0) return;
+
+  try {
+    const [response, trends] = await Promise.all([
+      fetch('http://hq.sinajs.cn/list=gds_AU9999,gds_AUTD', {
+        headers: {
+          'Referer': 'https://finance.sina.com.cn/',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+        }
+      }),
+      fetchEastmoneyTrends()
+    ]);
+
+    if (!response.ok) return;
+
+    const buffer = await response.arrayBuffer();
+    const text = new TextDecoder('gbk').decode(buffer);
+
+    const match9999 = text.match(/hq_str_gds_AU9999="([^"]*)"/);
+    const matchTD = text.match(/hq_str_gds_AUTD="([^"]*)"/);
+    if (!match9999 || !matchTD) return;
+
+    const arr9999 = match9999[1].split(',');
+    const arrTD = matchTD[1].split(',');
+    if (arr9999.length < 13 || arrTD.length < 13) return;
+
+    const price9999 = parseFloat(arr9999[0]) || parseFloat(arr9999[7]) || parseFloat(arr9999[8]);
+    const priceTD = parseFloat(arrTD[0]) || parseFloat(arrTD[7]) || parseFloat(arrTD[8]);
+
+    // Night market check (UTC+8 20:00 - 02:30)
+    const d = new Date();
+    const utcHour = d.getUTCHours();
+    const bjHour = (utcHour + 8) % 24;
+    const bjMinute = d.getUTCMinutes();
+    const timeNum = bjHour * 100 + bjMinute;
+    const isNight = timeNum >= 2000 || timeNum <= 230;
+
+    if (isNight && ruleState.nightMode === 'MUTE') {
+      return;
+    }
+
+    let rulesChanged = false;
+
+    for (const rule of activeRules) {
+      const price = rule.goldType === 'AU9999' ? price9999 : priceTD;
+      let triggered = false;
+
+      if (rule.criteria === 'ABOVE' && price >= rule.targetValue) triggered = true;
+      if (rule.criteria === 'BELOW' && price <= rule.targetValue) triggered = true;
+
+      if (triggered) {
+        console.log(`[Cron Monitor] Triggered rule: ${rule.id} for ${rule.goldType} at price ${price}`);
+        rule.isTriggered = true;
+        rulesChanged = true;
+
+        const subject = `【沪金无人值守预警】${rule.goldType === 'AU9999' ? 'AU99.99' : 'AU(T+D)'} 触及 ${price.toFixed(2)} 元！`;
+        const html = `
+          <div style="font-family: system-ui, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #f0f0f0; border-radius: 16px;">
+            <h2 style="color: #d97706; margin-top: 0;">⏱️ 沪金无人值守云端预警</h2>
+            <p style="font-size: 14px; color: #374151;">关闭网页后的离线云端巡检已触发表警：</p>
+            <div style="background-color: #fffbeb; border: 1px solid #fde68a; padding: 15px; border-radius: 12px; margin: 15px 0;">
+              <p style="margin: 0; font-size: 16px; font-weight: bold; color: #92400e;">
+                ${rule.goldType === 'AU9999' ? '沪金 AU99.99' : '沪金 AU(T+D)'} 最新价：<span style="font-size: 24px; color: #b45309;">${price.toFixed(2)}</span> 元/克
+              </p>
+              <p style="margin: 8px 0 0 0; font-size: 13px; color: #78350f;">
+                目标提醒阈值：${rule.targetValue.toFixed(2)} 元/克 (${rule.criteria === 'ABOVE' ? '向上突破' : '向下跌破'})
+              </p>
+            </div>
+            <p style="font-size: 12px; color: #9ca3af; text-align: center;">本邮件由 Cloudflare Workers 云端无人值守 Cron 定时巡检自动发出。</p>
+          </div>
+        `;
+
+        if (env.RESEND_API_KEY) {
+          const fromEmail = env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+          const fromSender = `SGE 沪金监控助手 <${fromEmail}>`;
+          const toEmails = typeof ruleState.alertEmail === 'string'
+            ? ruleState.alertEmail.split(',').map((e: string) => e.trim()).filter(Boolean)
+            : ruleState.alertEmail;
+
+          try {
+            await fetch('https://api.resend.com/emails', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                from: fromSender,
+                to: toEmails,
+                subject,
+                html,
+              }),
+            });
+          } catch (err) {
+            console.error('[Cron Monitor] Resend API send error:', err);
+          }
+        }
+      }
+    }
+
+    if (rulesChanged && env.GOLD_RULES_KV) {
+      try {
+        await env.GOLD_RULES_KV.put('rule_state', JSON.stringify(ruleState));
+      } catch (e) {
+        console.error('KV put error during cron update:', e);
+      }
+    }
+  } catch (err) {
+    console.error('[Cron Monitor] Error executing background check:', err);
+  }
+}
+
+export default {
+  fetch: app.fetch,
+  async scheduled(event: any, env: Bindings, ctx: any) {
+    ctx.waitUntil(checkBackgroundRulesAndSend(env));
+  }
+};

@@ -163,6 +163,27 @@ export default function App() {
     }
   }, [darkMode]);
 
+  // Sync alert rules & settings to cloud for 24/7 off-page background monitoring
+  useEffect(() => {
+    const syncRulesToCloud = async () => {
+      try {
+        await fetch('/api/gold/rules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rules,
+            alertEmail,
+            nightMode,
+            emailEnabled
+          })
+        });
+      } catch (e) {
+        console.warn('Cloud rules sync failed:', e);
+      }
+    };
+    syncRulesToCloud();
+  }, [rules, alertEmail, nightMode, emailEnabled]);
+
   // Fetch real-time gold prices from Sina Finance (via our server proxy)
   useEffect(() => {
     const fetchRealPrices = async () => {
