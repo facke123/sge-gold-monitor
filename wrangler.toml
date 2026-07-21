@@ -7,6 +7,10 @@ compatibility_flags = [ "nodejs_compat" ]
 [triggers]
 crons = [ "*/2 * * * *" ]
 
+[[kv_namespaces]]
+binding = "GOLD_RULES_KV"
+id = "bab8f12cc990455bb3c30f0d30faf7a3"
+
 [assets]
 directory = "./dist"
 binding = "ASSETS"
