@@ -646,19 +646,13 @@ app.post('/api/gold/send-alert', async (req, res) => {
         timeout: 8000
       } as any);
     } 
-    // 2.3 Fall back to Ethereal free SMTP test account for automated sandbox delivery!
+    // 2.3 Fall back: Report missing RESEND_API_KEY in environment
     else {
-      console.log('No SMTP or Resend config provided. Creating an Ethereal sandbox test account...');
-      const testAccount = await nodemailer.createTestAccount();
-      transporter = nodemailer.createTransport({
-        host: testAccount.smtp.host,
-        port: testAccount.smtp.port,
-        secure: testAccount.smtp.secure,
-        auth: {
-          user: testAccount.user,
-          pass: testAccount.pass,
-        },
-      } as any);
+      console.warn('No RESEND_API_KEY or SMTP config found in local environment.');
+      return res.status(400).json({
+        success: false,
+        error: '未检测到 RESEND_API_KEY 密钥！请在根目录 .dev.vars 文件中写入 RESEND_API_KEY="re_xxx"。'
+      });
     }
 
     const info = await transporter.sendMail({

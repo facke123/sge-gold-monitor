@@ -638,19 +638,13 @@ app.post('/api/gold/send-alert', async (c) => {
         timeout: 8000
       } as any);
     } 
-    // 2.3 Fall back to Ethereal free SMTP test account for automated sandbox delivery!
+    // 2.3 Fall back: Report missing RESEND_API_KEY in Cloudflare Worker environment
     else {
-      console.log('No SMTP config provided. Creating an Ethereal sandbox test account...');
-      const testAccount = await nodemailer.createTestAccount();
-      transporter = nodemailer.createTransport({
-        host: testAccount.smtp.host,
-        port: testAccount.smtp.port,
-        secure: testAccount.smtp.secure,
-        auth: {
-          user: testAccount.user,
-          pass: testAccount.pass,
-        },
-      } as any);
+      console.warn('No RESEND_API_KEY or SMTP config found in Cloudflare Worker environment.');
+      return c.json({
+        success: false,
+        error: 'Cloudflare Worker 未检测到 RESEND_API_KEY 密钥！请在 Cloudflare 仪表盘 Settings -> Variables 中添加加密变量 RESEND_API_KEY 并重新部署。'
+      }, 400);
     }
 
     const info = await transporter.sendMail({
