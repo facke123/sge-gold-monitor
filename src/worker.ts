@@ -590,16 +590,21 @@ app.post('/api/gold/send-alert', async (c) => {
         }),
       });
 
+      const resData = (await response.json()) as any;
+
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Resend API response error: ${response.status} - ${errorText}`);
+        const errMsg = resData?.message || resData?.name || `Resend API Error status: ${response.status}`;
+        console.error('Resend API Send Failed:', errMsg);
+        return c.json({
+          success: false,
+          error: `Resend API 邮件发送失败: ${errMsg}`
+        }, (response.status || 500) as any);
       }
 
-      const data = (await response.json()) as any;
-      console.log('Resend email sent successfully, messageId:', data.id);
+      console.log('Resend email sent successfully, messageId:', resData.id);
       return c.json({
         success: true,
-        messageId: data.id || null,
+        messageId: resData.id || null,
         isResend: true,
       });
     }

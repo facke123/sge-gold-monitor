@@ -554,9 +554,73 @@ app.post('/api/gold/send-alert', async (req, res) => {
       return res.status(400).json({ error: '接收邮箱不能为空' });
     }
 
+    // Try reading RESEND_API_KEY from process.env or .dev.vars file
+    let resendApiKey = process.env.RESEND_API_KEY;
+    if (!resendApiKey) {
+      try {
+        const fs = await import('fs');
+        const path = await import('path');
+        const devVarsPath = path.join(process.cwd(), '.dev.vars');
+        if (fs.existsSync(devVarsPath)) {
+          const content = fs.readFileSync(devVarsPath, 'utf-8');
+          const match = content.match(/RESEND_API_KEY=["']?([^"'\r\n]+)["']?/);
+          if (match) {
+            resendApiKey = match[1];
+          }
+        }
+      } catch (e) {
+        // ignore fs read error
+      }
+    }
+
+    // 1. Check if Resend API Key is available
+    if (resendApiKey) {
+      console.log('Sending alert email via Resend API (Node server)...');
+      const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+      const fromSender = `SGE 沪金监控助手 <${fromEmail}>`;
+
+      const toEmails = typeof email === 'string'
+        ? email.split(',').map(e => e.trim()).filter(Boolean)
+        : (Array.isArray(email) ? email : [email]);
+
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: fromSender,
+          to: toEmails,
+          subject: subject || '沪金监控警报触发',
+          text: text || '',
+          html: html || '',
+        }),
+      });
+
+      const resData = (await response.json()) as any;
+
+      if (!response.ok) {
+        const errMsg = resData?.message || resData?.name || `Resend API Error status: ${response.status}`;
+        console.error('Resend API Send Failed:', errMsg);
+        return res.status(response.status || 500).json({
+          success: false,
+          error: `Resend API 邮件发送失败: ${errMsg}`
+        });
+      }
+
+      console.log('Resend email sent successfully, messageId:', resData.id);
+      return res.json({
+        success: true,
+        messageId: resData.id || null,
+        isResend: true,
+      });
+    }
+
+    // 2. Fall back to SMTP configuration
     let transporter;
 
-    // 1. Check if SMTP configuration is passed from the client
+    // 2.1 Check if SMTP configuration is passed from the client
     if (smtpConfig && smtpConfig.host && smtpConfig.user && smtpConfig.pass) {
       transporter = nodemailer.createTransport({
         host: smtpConfig.host,
@@ -569,7 +633,7 @@ app.post('/api/gold/send-alert', async (req, res) => {
         timeout: 8000 // 8s timeout to fail fast
       } as any);
     } 
-    // 2. Fall back to server environment variables
+    // 2.2 Fall back to server environment variables
     else if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
       transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
@@ -582,9 +646,9 @@ app.post('/api/gold/send-alert', async (req, res) => {
         timeout: 8000
       } as any);
     } 
-    // 3. Fall back to Ethereal free SMTP test account for automated, guaranteed sandbox delivery!
+    // 2.3 Fall back to Ethereal free SMTP test account for automated sandbox delivery!
     else {
-      console.log('No SMTP config provided. Creating an Ethereal sandbox test account...');
+      console.log('No SMTP or Resend config provided. Creating an Ethereal sandbox test account...');
       const testAccount = await nodemailer.createTestAccount();
       transporter = nodemailer.createTransport({
         host: testAccount.smtp.host,
