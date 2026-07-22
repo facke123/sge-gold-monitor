@@ -576,8 +576,7 @@ app.post('/api/gold/send-alert', async (req, res) => {
     // 1. Check if Resend API Key is available
     if (resendApiKey) {
       console.log('Sending alert email via Resend API (Node server)...');
-      const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
-      const fromSender = `SGE 沪金监控助手 <${fromEmail}>`;
+      const fromSender = process.env.RESEND_FROM_EMAIL || 'SGE 沪金监控助手 <onboarding@resend.dev>';
 
       const toEmails = typeof email === 'string'
         ? email.split(',').map(e => e.trim()).filter(Boolean)

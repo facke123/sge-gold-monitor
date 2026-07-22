@@ -568,8 +568,7 @@ app.post('/api/gold/send-alert', async (c) => {
     // 1. Check if Resend API is configured in environment variables (Highly recommended for Cloudflare Workers)
     if (c.env.RESEND_API_KEY) {
       console.log('Sending alert email via Resend API...');
-      const fromEmail = c.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
-      const fromSender = `SGE 沪金监控助手 <${fromEmail}>`;
+      const fromSender = c.env.RESEND_FROM_EMAIL || 'SGE 沪金监控助手 <onboarding@resend.dev>';
 
       // Parse email string (comma-separated) into an array of strings for Resend API compatibility
       const toEmails = typeof email === 'string'
@@ -810,8 +809,7 @@ async function checkBackgroundRulesAndSend(env: Bindings) {
         `;
 
         if (env.RESEND_API_KEY) {
-          const fromEmail = env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
-          const fromSender = `SGE 沪金监控助手 <${fromEmail}>`;
+          const fromSender = env.RESEND_FROM_EMAIL || 'SGE 沪金监控助手 <onboarding@resend.dev>';
           const toEmails = typeof ruleState.alertEmail === 'string'
             ? ruleState.alertEmail.split(',').map((e: string) => e.trim()).filter(Boolean)
             : ruleState.alertEmail;
