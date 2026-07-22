@@ -487,6 +487,10 @@ export default function App() {
 
       const quote = rule.goldType === 'AU9999' ? au9999 : autd;
       const price = quote.price;
+
+      // Skip rule checking if price is 0 or invalid (e.g. loading or connection issues)
+      if (!price || price <= 0) return rule;
+
       let triggered = false;
 
       // Calculate percentages for 1M and 5M

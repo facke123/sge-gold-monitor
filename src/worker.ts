@@ -256,6 +256,13 @@ app.post('/api/gold/analysis', async (c) => {
     return c.json({ error: '缺少黄金行情数据 (au9999 / autd)' }, 400);
   }
 
+  // Calculate UTC date
+  const d = new Date();
+  const utcYear = d.getUTCFullYear();
+  const utcMonth = d.getUTCMonth() + 1;
+  const utcDay = d.getUTCDate();
+  const utcDateStr = `${utcYear}年${utcMonth}月${utcDay}日`;
+
   // Generate extremely professional, real-time calculated local report
   const changeStatus = au9999.changePercent > 0.1 ? '偏强多头占优' : au9999.changePercent < -0.1 ? '偏弱空头主导' : '横盘整理多空拉锯';
   const buyerConfidence = au9999.changePercent > 0 ? '较强承接力' : '防御性买盘';
@@ -263,13 +270,19 @@ app.post('/api/gold/analysis', async (c) => {
   const auPrice = Number(au9999.price) || 620.00;
   const tdPrice = Number(autd.price) || 620.00;
 
-  const fallbackReport = `### 📈 沪金盘面深度综述 (本地智能 analysis 引擎)
+  const fallbackReport = `报告机构：黄金市场研究院 · 首席黄金策略组
+发布时间：${utcDateStr} (UTC)
+分析标的：上海黄金交易所（SGE）AU99.99 / AU(T+D)
+
+---
+
+### 📈 沪金盘面深度综述 (本地智能 analysis 引擎)
 - **Au99.99 现货**：当前价 **${auPrice.toFixed(2)} 元/克**，今日开盘 ${Number(au9999.open).toFixed(2)} 元，日内波动区间 [${Number(au9999.low).toFixed(2)}, ${Number(au9999.high).toFixed(2)}]，今日涨跌幅 **${au9999.changePercent >= 0 ? '+' : ''}${au9999.changePercent}%**。
 - **Au(T+D) 递延合约**：当前价 **${tdPrice.toFixed(2)} 元/克**，日内波幅与现货贴合。今日涨跌幅 **${autd.changePercent >= 0 ? '+' : ''}${autd.changePercent}%**。
 - **多空态势分析**：今日上海金价表现呈现 **${changeStatus}**。主力买盘在支撑位附近显现出 **${buyerConfidence}**，国内金溢价偏离度较窄，整体仍维持在中长期上行趋势中的洗盘整固阶段。
 
 ### 🌐 宏观风向标与国内溢价
-- **汇率与国内溢价**：人民币汇率合理区间双向波动。沪金对比国际伦敦现货金(XAU)溢价率维持在 **+0.18% 至 +0.32%**，国内实物买盘与央行黄金战略持仓储备对沪金形成坚实的底盘托底效应。
+- **汇率与国内溢价**：人民币汇率合理区间双向波动. 沪金对比国际伦敦现货金(XAU)溢价率维持在 **+0.18% 至 +0.32%**，国内实物买盘与央行黄金战略持仓储备对沪金形成坚实的底盘托底效应。
 - **外部利率与美元指数**：近期美联储政策利率变动预测逐渐明朗。全球央行多元化储备性买盘与阶段性避险性资金共振，为黄金中长期上涨周期提供了稳定动能。
 
 ### 📉 关键支撑与阻力研判
@@ -295,7 +308,15 @@ app.post('/api/gold/analysis', async (c) => {
     const ai = getAiClient(apiKey);
 
     const systemInstruction = `你是一位顶级的中国黄金 market 高级分析师。专长于上海黄金交易所(SGE)的沪金实物黄金(AU99.99)和延期交收(AU T+D)分析。
-请结合以下提供的实时行情数据，以及当前的国际宏观金融背景（包括美联储政策利率预期、美元指数、国际现货黄金 XAU 走势、国内人民币汇率对沪金溢价、避险情绪等），提供一份极具专业度、排版精美、条理清晰的“沪金智能分析研判报告”。
+
+报告开头必须严格以以下 Markdown 格式输出（不允许使用任何占位符，必须使用实际提供的日期）：
+报告机构：黄金市场研究院 · 首席黄金策略组
+发布时间：${utcDateStr} (UTC)
+分析标的：上海黄金交易所（SGE）AU99.99 / AU(T+D)
+
+---
+
+请结合以下提供的实时行情数据，以及当前的国际宏观金融背景（包括美联储政策利率预期、美元指数、国际现现货黄金 XAU 走势、国内人民币汇率对沪金溢价、避险情绪等），提供一份极具专业度、排版精美、条理清晰的“沪金智能分析研判报告”。
 
 请严格使用中文回答，输出的内容应当包含：
 1. 📈 盘面综述：基于 AU99.99(当前: ${au9999.price}元/克, 今日波幅: ${au9999.low}-${au9999.high}元/克) 和 AU T+D(当前: ${autd.price}元/克) 的波动情况，评估市场多空态势和短期强弱。
@@ -309,7 +330,7 @@ app.post('/api/gold/analysis', async (c) => {
 - 沪金 AU99.99: 最新价 ${au9999.price} 元/克，开盘价 ${au9999.open} 元/克，今日最高 ${au9999.high} 元/克，今日最低 ${au9999.low} 元/克，昨日收盘/结算价 ${au9999.lastSettlement} 元/克，涨跌幅 ${au9999.changePercent}%。
 - 沪金 AU(T+D): 最新价 ${autd.price} 元/克，开盘价 ${autd.open} 元/克，今日最高 ${autd.high} 元/克，今日最低 ${autd.low} 元/克，昨日收盘/结算价 ${autd.lastSettlement} 元/克，涨跌幅 ${autd.changePercent}%。
 
-请基于这些实时指标和当前最新宏观局势（设定当前年份为2026年），进行全面深度的智能解析和策略判断。`;
+请基于这些实时指标和当前最新宏观局势（设定发布时间为 ${utcDateStr}，年份为2026年），进行全面深度的智能解析和策略判断。`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3.5-flash',
