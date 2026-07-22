@@ -499,12 +499,24 @@ export default function AiAnalyst({ au9999, autd }: AiAnalystProps) {
         )}
       </div>
 
-      {/* Off-screen Poster container to be captured by html-to-image */}
+      {/* Off-screen rendering wrapper that forces layout paint but hides element behind viewport */}
       <div 
-        id="share-poster-node" 
-        className="bg-gray-50 p-8 rounded-3xl border border-gray-200 w-[600px] flex flex-col gap-6 text-[#1A1A1A] font-sans"
-        style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}
+        style={{ 
+          position: 'fixed', 
+          left: 0, 
+          top: 0, 
+          width: '600px', 
+          height: '1px', 
+          overflow: 'hidden', 
+          zIndex: -9999, 
+          opacity: 0.001, 
+          pointerEvents: 'none' 
+        }}
       >
+        <div 
+          id="share-poster-node" 
+          className="light bg-gray-50 p-8 rounded-3xl border border-gray-200 w-[600px] flex flex-col gap-6 text-[#1A1A1A] font-sans"
+        >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 pb-5">
           <div className="flex items-center gap-3">
@@ -561,6 +573,7 @@ export default function AiAnalyst({ au9999, autd }: AiAnalystProps) {
           </div>
         </div>
       </div>
+    </div>
 
       {/* Share Modal overlay */}
       {shareModalOpen && (
