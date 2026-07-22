@@ -95,6 +95,15 @@ export default function AiAnalyst({ au9999, autd }: AiAnalystProps) {
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedImage, setCopiedImage] = useState(false);
 
+  // Helper to get range percentage for visualizer
+  const getRangePercent = (price: number, low: number, high: number) => {
+    if (!price || !low || !high || high <= low) return 50;
+    return Math.min(100, Math.max(0, ((price - low) / (high - low)) * 100));
+  };
+
+  const au9999Percent = getRangePercent(au9999.price, au9999.low, au9999.high);
+  const autdPercent = getRangePercent(autd.price, autd.low, autd.high);
+
   const loadingSteps = [
     '读取沪金实时盘面技术特征...',
     '分析研判宏观指标与汇率溢价...',
@@ -515,65 +524,141 @@ export default function AiAnalyst({ au9999, autd }: AiAnalystProps) {
       >
         <div 
           id="share-poster-node" 
-          className="light bg-gray-50 p-8 rounded-3xl border border-gray-200 w-[600px] flex flex-col gap-6 text-[#1A1A1A] font-sans"
+          className="light bg-gradient-to-b from-[#FAF8F5] to-[#FFFFFF] p-8 rounded-[32px] border-2 border-amber-200/60 w-[600px] flex flex-col gap-6 text-[#1A1A1A] font-sans relative shadow-2xl"
         >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 pb-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white shadow-md">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-gray-900 tracking-tight">SGE 沪金云端智能研报</h1>
-              <p className="text-xs text-gray-450 mt-0.5">沪金极简实时助手 · 云端智能决策辅助</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <span className="text-[10px] bg-amber-100 text-amber-800 font-extrabold px-2 py-0.5 rounded-md tracking-wider uppercase">
-              AI REPORT
-            </span>
-            <div className="text-[10px] text-gray-400 mt-1 flex items-center gap-1 justify-end">
-              <Clock className="w-3.5 h-3.5" />
-              <span>{new Date().toLocaleString()}</span>
-            </div>
-          </div>
-        </div>
+          {/* Top Golden Accent Banner */}
+          <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-amber-300 via-amber-500 to-yellow-300 rounded-t-[30px]" />
 
-        {/* Price info block */}
-        <div className="grid grid-cols-2 gap-4 bg-white p-4 rounded-2xl border border-gray-150">
-          <div className="text-center py-1 bg-gray-50/50 rounded-xl border border-gray-100">
-            <span className="text-[10px] text-gray-400 font-bold block">沪金 AU99.99 最新报价</span>
-            <span className="text-2xl font-bold font-mono text-gray-800 mt-1 block">
-              {au9999.price > 0 ? au9999.price.toFixed(2) : '--.--'} <span className="text-xs font-semibold text-gray-400">元/克</span>
-            </span>
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-amber-200/50 pb-5 mt-1">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-amber-500/20">
+                <Sparkles className="w-5.5 h-5.5" />
+              </div>
+              <div>
+                <h1 className="text-xl font-extrabold text-gray-900 tracking-tight flex items-center gap-1.5">
+                  SGE 沪金云端智能研报
+                </h1>
+                <p className="text-[11px] text-gray-500 font-medium mt-0.5">上海黄金交易所主力合约行情深度综述</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="text-[9px] bg-gradient-to-r from-amber-600 to-amber-700 text-white font-extrabold px-2.5 py-0.5 rounded-md tracking-wider uppercase shadow-sm">
+                OFFICIAL REPORT
+              </span>
+              <div className="text-[10px] text-gray-450 mt-1.5 flex items-center gap-1 justify-end font-semibold">
+                <Clock className="w-3.5 h-3.5 text-amber-600" />
+                <span>{new Date().toLocaleString()} (北京时间)</span>
+              </div>
+            </div>
           </div>
-          <div className="text-center py-1 bg-gray-50/50 rounded-xl border border-gray-100">
-            <span className="text-[10px] text-gray-400 font-bold block">沪金 AU(T+D) 最新报价</span>
-            <span className="text-2xl font-bold font-mono text-gray-800 mt-1 block">
-              {autd.price > 0 ? autd.price.toFixed(2) : '--.--'} <span className="text-xs font-semibold text-gray-400">元/克</span>
-            </span>
-          </div>
-        </div>
 
-        {/* Report Content */}
-        <div className="bg-white p-6 rounded-2xl border border-gray-150 flex-1 leading-relaxed">
-          <SimpleMarkdown text={analysis} />
-        </div>
+          {/* SGE Ticker Board with range visualization */}
+          <div className="grid grid-cols-2 gap-5">
+            {/* AU9999 Card */}
+            <div className="bg-[#FFFDF9] p-4.5 rounded-2xl border border-amber-100/70 shadow-sm flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">沪金 AU99.99 现货</span>
+                <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full ${
+                  au9999.changePercent >= 0 
+                    ? 'bg-rose-50 text-rose-600 border border-rose-100' 
+                    : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                }`}>
+                  {au9999.changePercent >= 0 ? '▲ +' : '▼ '}{au9999.changePercent.toFixed(2)}%
+                </span>
+              </div>
+              <div className="flex items-baseline gap-1 mb-3">
+                <span className="text-2xl font-black font-mono text-gray-900">{au9999.price > 0 ? au9999.price.toFixed(2) : '--.--'}</span>
+                <span className="text-[10px] text-gray-400 font-bold">元/克</span>
+              </div>
+              
+              {/* Visualizer Bar */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-[8px] text-gray-400 font-bold">
+                  <span>最低 {au9999.low.toFixed(2)}</span>
+                  <span>最高 {au9999.high.toFixed(2)}</span>
+                </div>
+                <div className="h-1.5 w-full bg-gray-100 rounded-full relative">
+                  <div 
+                    className="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-amber-400 to-amber-500 rounded-full" 
+                    style={{ width: `${au9999Percent}%` }}
+                  />
+                  <div 
+                    className="absolute w-2.5 h-2.5 bg-amber-600 border-2 border-white rounded-full -top-[2px] -ml-1.25 shadow-sm"
+                    style={{ left: `${au9999Percent}%` }}
+                  />
+                </div>
+              </div>
+            </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between border-t border-gray-200 pt-5 mt-2">
-          <div className="space-y-0.5">
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">实时行情监控服务已开启</p>
-            <p className="text-xs text-gray-700 font-bold">扫码或浏览器访问：{window.location.origin}</p>
+            {/* AUTD Card */}
+            <div className="bg-[#FFFDF9] p-4.5 rounded-2xl border border-amber-100/70 shadow-sm flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">沪金 AU(T+D) 递延</span>
+                <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full ${
+                  autd.changePercent >= 0 
+                    ? 'bg-rose-50 text-rose-600 border border-rose-100' 
+                    : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                }`}>
+                  {autd.changePercent >= 0 ? '▲ +' : '▼ '}{autd.changePercent.toFixed(2)}%
+                </span>
+              </div>
+              <div className="flex items-baseline gap-1 mb-3">
+                <span className="text-2xl font-black font-mono text-gray-900">{autd.price > 0 ? autd.price.toFixed(2) : '--.--'}</span>
+                <span className="text-[10px] text-gray-400 font-bold">元/克</span>
+              </div>
+              
+              {/* Visualizer Bar */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-[8px] text-gray-400 font-bold">
+                  <span>最低 {autd.low.toFixed(2)}</span>
+                  <span>最高 {autd.high.toFixed(2)}</span>
+                </div>
+                <div className="h-1.5 w-full bg-gray-100 rounded-full relative">
+                  <div 
+                    className="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-amber-400 to-amber-500 rounded-full" 
+                    style={{ width: `${autdPercent}%` }}
+                  />
+                  <div 
+                    className="absolute w-2.5 h-2.5 bg-amber-600 border-2 border-white rounded-full -top-[2px] -ml-1.25 shadow-sm"
+                    style={{ left: `${autdPercent}%` }}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="bg-white p-2 rounded-xl border border-gray-150 shadow-sm flex items-center justify-center">
-            <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-amber-600 rounded-lg flex items-center justify-center text-white text-[9px] font-bold text-center leading-none p-1 shadow-inner">
-              SGE GOLD
+
+          {/* Report Content Panel */}
+          <div className="bg-white p-6 rounded-2xl border border-amber-100/60 shadow-inner flex-1 leading-relaxed min-h-[300px]">
+            <SimpleMarkdown text={analysis} />
+          </div>
+
+          {/* Disclaimer Banner */}
+          <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-3 flex gap-2.5 items-start">
+            <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <p className="text-[10px] text-amber-900/80 leading-normal font-medium">
+              <strong>投资提示</strong>：贵金属交易具有杠杆风险，盘面数据为延时行情，本报告由云端量化策略及智能语言模型合并生成，不构成任何入场担保，请注意仓位控制。
+            </p>
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between border-t border-amber-200/50 pt-5 mt-1">
+            <div className="space-y-1">
+              <p className="text-[10px] text-amber-800 font-extrabold uppercase tracking-wider flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                SGE 沪金主力云端实时监控中
+              </p>
+              <p className="text-[11px] text-gray-500 font-bold">扫码或浏览器访问：{window.location.origin}</p>
+            </div>
+            <div className="bg-white p-1.5 rounded-xl border border-amber-100/80 shadow-sm flex items-center justify-center">
+              <div className="w-11 h-11 bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 rounded-lg flex flex-col items-center justify-center text-white text-[9px] font-black text-center leading-none p-1 shadow-inner select-none">
+                <span className="text-[7px] font-bold opacity-80 mb-0.5">SGE</span>
+                <span>GOLD</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
 
       {/* Share Modal overlay */}
       {shareModalOpen && (
