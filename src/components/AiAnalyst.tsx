@@ -4,16 +4,12 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Cpu, RefreshCw, Sparkles, FileText, AlertCircle, TrendingUp, TrendingDown, Activity, Clock } from 'lucide-react';
+import { Cpu, RefreshCw, Sparkles, FileText, AlertCircle, TrendingUp, TrendingDown, Activity, Clock, Share2, Copy, Download, Check, X } from 'lucide-react';
+import { toPng } from 'html-to-image';
 import { GoldQuote } from '../types';
 
-interface AiAnalystProps {
-  au9999: GoldQuote;
-  autd: GoldQuote;
-}
-
 // Simple Markdown-to-JSX Parser to avoid importing heavy external libraries
-function SimpleMarkdown({ text }: { text: string }) {
+export function SimpleMarkdown({ text }: { text: string }) {
   const lines = text.split('\n');
   
   return (
@@ -62,7 +58,7 @@ function SimpleMarkdown({ text }: { text: string }) {
 }
 
 // Helper to replace **text** with <strong>text</strong>
-function parseBold(text: string) {
+export function parseBold(text: string) {
   const parts = text.split(/\*\*([\s\S]*?)\*\*/g);
   if (parts.length === 1) return text;
   
@@ -72,6 +68,11 @@ function parseBold(text: string) {
     }
     return part;
   });
+}
+
+export interface AiAnalystProps {
+  au9999: GoldQuote;
+  autd: GoldQuote;
 }
 
 export default function AiAnalyst({ au9999, autd }: AiAnalystProps) {
@@ -84,6 +85,15 @@ export default function AiAnalyst({ au9999, autd }: AiAnalystProps) {
   const [shortTermTrend, setShortTermTrend] = useState<{ trend: '看涨' | '看跌' | '震荡'; reason: string; confidence: number; isFallback?: boolean } | null>(null);
   const [shortTermLoading, setShortTermLoading] = useState<boolean>(false);
   const [shortTermError, setShortTermError] = useState<string>('');
+
+  // Share and poster state variables
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [sharingUrl, setSharingUrl] = useState('');
+  const [shareLoading, setShareLoading] = useState(false);
+  const [posterImage, setPosterImage] = useState<string | null>(null);
+  const [posterGenerating, setPosterGenerating] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedImage, setCopiedImage] = useState(false);
 
   const loadingSteps = [
     '读取沪金实时盘面技术特征...',
@@ -215,6 +225,92 @@ export default function AiAnalyst({ au9999, autd }: AiAnalystProps) {
     }
   };
 
+  const handleShareClick = async () => {
+    setShareModalOpen(true);
+    setShareLoading(true);
+    setPosterImage(null);
+    setCopiedLink(false);
+    setCopiedImage(false);
+
+    try {
+      const response = await fetch('/api/gold/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          analysis,
+          prices: {
+            au9999: au9999.price,
+            autd: autd.price
+          }
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        const url = `${window.location.origin}/?share=${data.shareId}`;
+        setSharingUrl(url);
+      }
+    } catch (e) {
+      console.error('Failed to create share link:', e);
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  const copyPosterToClipboard = async () => {
+    if (!posterImage) return;
+    try {
+      const response = await fetch(posterImage);
+      const blob = await response.blob();
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob })
+      ]);
+      setCopiedImage(true);
+      setTimeout(() => setCopiedImage(false), 2000);
+    } catch (err) {
+      console.warn('Clipboard Image API failed:', err);
+    }
+  };
+
+  const copyShareLink = () => {
+    if (!sharingUrl) return;
+    navigator.clipboard.writeText(sharingUrl)
+      .then(() => {
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2000);
+      })
+      .catch(err => console.error('Link copy failed:', err));
+  };
+
+  useEffect(() => {
+    if (shareModalOpen && analysis && sharingUrl) {
+      setPosterGenerating(true);
+      const timer = setTimeout(() => {
+        const node = document.getElementById('share-poster-node');
+        if (node) {
+          toPng(node, { 
+            cacheBust: true, 
+            backgroundColor: '#f9fafb',
+            style: {
+              transform: 'scale(1)',
+              transformOrigin: 'top left'
+            }
+          })
+            .then((dataUrl) => {
+              setPosterImage(dataUrl);
+              setPosterGenerating(false);
+            })
+            .catch((err) => {
+              console.error('Poster image generation failed:', err);
+              setPosterGenerating(false);
+            });
+        } else {
+          setPosterGenerating(false);
+        }
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [shareModalOpen, sharingUrl, analysis]);
+
   return (
     <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-[28px] p-6 shadow-sm flex flex-col h-full" id="ai-analyst-panel">
       {/* Header */}
@@ -230,13 +326,24 @@ export default function AiAnalyst({ au9999, autd }: AiAnalystProps) {
         </div>
         
         {!loading && (
-          <button
-            onClick={fetchAnalysis}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 dark:bg-gray-850 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>{analysis ? '重新研判' : '生成研判'}</span>
-          </button>
+          <div className="flex gap-2">
+            {analysis && (
+              <button
+                onClick={handleShareClick}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-900/40 text-amber-700 dark:text-amber-400 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>分享研报</span>
+              </button>
+            )}
+            <button
+              onClick={fetchAnalysis}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 dark:bg-gray-850 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>{analysis ? '重新研判' : '生成研判'}</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -391,6 +498,171 @@ export default function AiAnalyst({ au9999, autd }: AiAnalystProps) {
           </div>
         )}
       </div>
+
+      {/* Off-screen Poster container to be captured by html-to-image */}
+      <div 
+        id="share-poster-node" 
+        className="bg-gray-50 p-8 rounded-3xl border border-gray-200 w-[600px] flex flex-col gap-6 text-[#1A1A1A] font-sans"
+        style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-gray-200 pb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white shadow-md">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-gray-900 tracking-tight">SGE 沪金云端智能研报</h1>
+              <p className="text-xs text-gray-450 mt-0.5">沪金极简实时助手 · 云端智能决策辅助</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="text-[10px] bg-amber-100 text-amber-800 font-extrabold px-2 py-0.5 rounded-md tracking-wider uppercase">
+              AI REPORT
+            </span>
+            <div className="text-[10px] text-gray-400 mt-1 flex items-center gap-1 justify-end">
+              <Clock className="w-3.5 h-3.5" />
+              <span>{new Date().toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Price info block */}
+        <div className="grid grid-cols-2 gap-4 bg-white p-4 rounded-2xl border border-gray-150">
+          <div className="text-center py-1 bg-gray-50/50 rounded-xl border border-gray-100">
+            <span className="text-[10px] text-gray-400 font-bold block">沪金 AU99.99 最新报价</span>
+            <span className="text-2xl font-bold font-mono text-gray-800 mt-1 block">
+              {au9999.price > 0 ? au9999.price.toFixed(2) : '--.--'} <span className="text-xs font-semibold text-gray-400">元/克</span>
+            </span>
+          </div>
+          <div className="text-center py-1 bg-gray-50/50 rounded-xl border border-gray-100">
+            <span className="text-[10px] text-gray-400 font-bold block">沪金 AU(T+D) 最新报价</span>
+            <span className="text-2xl font-bold font-mono text-gray-800 mt-1 block">
+              {autd.price > 0 ? autd.price.toFixed(2) : '--.--'} <span className="text-xs font-semibold text-gray-400">元/克</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Report Content */}
+        <div className="bg-white p-6 rounded-2xl border border-gray-150 flex-1 leading-relaxed">
+          <SimpleMarkdown text={analysis} />
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between border-t border-gray-200 pt-5 mt-2">
+          <div className="space-y-0.5">
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">实时行情监控服务已开启</p>
+            <p className="text-xs text-gray-700 font-bold">扫码或浏览器访问：{window.location.origin}</p>
+          </div>
+          <div className="bg-white p-2 rounded-xl border border-gray-150 shadow-sm flex items-center justify-center">
+            <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-amber-600 rounded-lg flex items-center justify-center text-white text-[9px] font-bold text-center leading-none p-1 shadow-inner">
+              SGE GOLD
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Share Modal overlay */}
+      {shareModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 border border-gray-150 dark:border-gray-800 rounded-[28px] max-w-lg w-full p-6 shadow-2xl relative space-y-5 max-h-[90vh] overflow-y-auto">
+            {/* Close Button */}
+            <button
+              onClick={() => setShareModalOpen(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1.5 hover:bg-gray-50 dark:hover:bg-gray-850 rounded-xl cursor-pointer transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Header */}
+            <div className="flex items-center gap-2.5 pb-1 border-b border-gray-100 dark:border-gray-800">
+              <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center text-white">
+                <Share2 className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-950 dark:text-white">智能研报一键分享</h3>
+                <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">生成分享链接或保存精美卡片图片</p>
+              </div>
+            </div>
+
+            {/* Section 1: Copy Link */}
+            <div className="space-y-2">
+              <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">网页分享链接</label>
+              {shareLoading ? (
+                <div className="flex items-center justify-center py-2 gap-2 text-xs text-gray-400">
+                  <Activity className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                  <span>正在云端生成分享链接...</span>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={sharingUrl}
+                    readOnly
+                    className="flex-1 bg-gray-50 dark:bg-gray-955 border border-gray-200 dark:border-gray-850 rounded-xl p-2.5 text-xs text-gray-600 dark:text-gray-350 focus:outline-none font-mono"
+                  />
+                  <button
+                    onClick={copyShareLink}
+                    className="px-4 py-2.5 bg-gray-900 dark:bg-gray-800 hover:bg-black dark:hover:bg-gray-955 text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedLink ? '已复制' : '复制'}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Section 2: Generate Poster Image */}
+            <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+              <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">图片海报分享</label>
+              
+              {posterGenerating ? (
+                <div className="bg-gray-50 dark:bg-gray-950 rounded-2xl p-8 border border-gray-100 dark:border-gray-850 text-center space-y-3">
+                  <Activity className="w-6 h-6 animate-spin text-amber-500 mx-auto" />
+                  <p className="text-xs text-gray-400">正在渲染高清预警研报卡片图片...</p>
+                </div>
+              ) : posterImage ? (
+                <div className="space-y-4">
+                  {/* Poster Preview */}
+                  <div className="relative border border-gray-150 dark:border-gray-800 rounded-2xl overflow-hidden shadow-inner max-h-[220px] bg-gray-50 dark:bg-gray-955 flex items-center justify-center p-3">
+                    <img 
+                      src={posterImage} 
+                      alt="Share Poster" 
+                      className="max-h-full max-w-full rounded-lg object-contain border border-gray-100" 
+                    />
+                    <div className="absolute bottom-2.5 left-2.5 right-2.5 bg-black/75 backdrop-blur-sm text-[9px] text-gray-300 font-semibold py-1 px-2.5 rounded-lg text-center leading-none">
+                      💡 提示：电脑端可右键复制/保存图片，手机端可长按保存至相册
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={copyPosterToClipboard}
+                      className="flex-1 py-2.5 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      {copiedImage ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedImage ? '已复制海报' : '复制海报图片'}</span>
+                    </button>
+                    <a
+                      href={posterImage}
+                      download={`SGE黄金研报分享_${new Date().toLocaleDateString()}.png`}
+                      className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer text-center"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>下载高清图片</span>
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-gray-50 dark:bg-gray-950 rounded-2xl p-8 border border-gray-100 dark:border-gray-855 text-center text-xs text-rose-500">
+                  无法生成研报海报图片，请重试
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

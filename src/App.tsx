@@ -10,10 +10,10 @@ import PriceCards from './components/PriceCards';
 import PriceChart from './components/PriceChart';
 import AlertManager from './components/AlertManager';
 import HoldingsCalculator from './components/HoldingsCalculator';
-import AiAnalyst from './components/AiAnalyst';
+import AiAnalyst, { SimpleMarkdown } from './components/AiAnalyst';
 import MarketStatsWidget from './components/MarketStatsWidget';
 import { audioSynth } from './utils/audio';
-import { Bell, Sparkles, AlertTriangle, X } from 'lucide-react';
+import { Bell, Sparkles, AlertTriangle, X, Clock } from 'lucide-react';
 
 // Initial empty quotes (populated on first API fetch)
 const INITIAL_AU9999: GoldQuote = {
@@ -54,6 +54,19 @@ export default function App() {
   // Quotes state
   const [au9999, setAu9999] = useState<GoldQuote>(INITIAL_AU9999);
   const [autd, setAutd] = useState<GoldQuote>(INITIAL_AUTD);
+
+  // Share report state variables
+  const [sharedReportId, setSharedReportId] = useState<string | null>(null);
+  const [sharedReportData, setSharedReportData] = useState<{
+    analysis: string;
+    timestamp: number;
+    prices: {
+      au9999?: number;
+      autd?: number;
+    };
+  } | null>(null);
+  const [sharedReportLoading, setSharedReportLoading] = useState<boolean>(false);
+  const [sharedReportError, setSharedReportError] = useState<string>('');
 
   // General App settings
   const [selectedType, setSelectedType] = useState<GoldType>('AU9999');
@@ -120,6 +133,30 @@ export default function App() {
 
   // Track counts of triggered alerts
   const [triggeredCount, setTriggeredCount] = useState<number>(0);
+
+  // Check for share query parameter on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shareId = params.get('share');
+    if (shareId) {
+      setSharedReportId(shareId);
+      setSharedReportLoading(true);
+      fetch(`/api/gold/share?id=${shareId}`)
+        .then((res) => {
+          if (!res.ok) throw new Error('分享的报告已被删除或已过期');
+          return res.json();
+        })
+        .then((data) => {
+          setSharedReportData(data);
+        })
+        .catch((err) => {
+          setSharedReportError(err.message || '加载分享报告失败');
+        })
+        .finally(() => {
+          setSharedReportLoading(false);
+        });
+    }
+  }, []);
 
   // Sync settings to localStorage
   useEffect(() => {
@@ -740,6 +777,117 @@ export default function App() {
       }))
     );
   };
+
+  if (sharedReportId) {
+    return (
+      <div className="bg-[#F8F9FA] dark:bg-[#0f172a] text-[#1A1A1A] dark:text-gray-100 min-h-screen font-sans flex flex-col justify-between selection:bg-amber-100 selection:text-amber-900 transition-colors duration-300">
+        <header className="border-b border-gray-100 dark:border-gray-800 bg-white/90 dark:bg-gray-950/90 backdrop-blur-md sticky top-0 z-40 px-6 py-4 transition-colors duration-250">
+          <div className="max-w-3xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-amber-500 rounded-xl flex items-center justify-center text-white shadow-sm shadow-amber-500/20">
+                <Sparkles className="w-5 h-5 animate-pulse text-amber-105" />
+              </div>
+              <div>
+                <h1 className="text-base font-semibold text-gray-900 dark:text-gray-100 tracking-tight">
+                  沪金 AI 智能研判分享
+                </h1>
+                <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
+                  来自沪金极简实时助手的云端研报
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                window.history.replaceState({}, '', window.location.pathname);
+                setSharedReportId(null);
+              }}
+              className="text-xs px-3 py-1.5 bg-gray-900 hover:bg-black dark:bg-gray-800 dark:hover:bg-gray-700 text-white font-bold rounded-xl transition-colors cursor-pointer"
+            >
+              返回我的控制台
+            </button>
+          </div>
+        </header>
+
+        <main className="max-w-3xl w-full mx-auto p-4 sm:p-6 flex-1 flex flex-col justify-center">
+          {sharedReportLoading ? (
+            <div className="text-center py-12 space-y-4">
+              <div className="relative w-12 h-12 mx-auto">
+                <div className="absolute inset-0 rounded-full border-2 border-amber-500/10" />
+                <div className="absolute inset-0 rounded-full border-2 border-t-amber-500 animate-spin" />
+              </div>
+              <p className="text-xs text-gray-500">正在云端调取 AI 黄金研报数据...</p>
+            </div>
+          ) : sharedReportError ? (
+            <div className="bg-white dark:bg-gray-900 border border-gray-150 dark:border-gray-850 rounded-[28px] p-8 shadow-sm text-center max-w-md mx-auto space-y-4">
+              <AlertTriangle className="w-12 h-12 text-rose-500 mx-auto" />
+              <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200">研报加载失败</h3>
+              <p className="text-xs text-gray-400 leading-relaxed">{sharedReportError}</p>
+              <button
+                onClick={() => {
+                  window.history.replaceState({}, '', window.location.pathname);
+                  setSharedReportId(null);
+                }}
+                className="w-full py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-600 text-xs font-semibold rounded-xl transition-colors"
+              >
+                返回控制台主页
+              </button>
+            </div>
+          ) : sharedReportData ? (
+            <div className="bg-white dark:bg-gray-900 border border-gray-150 dark:border-gray-850 rounded-[28px] p-6 sm:p-8 shadow-sm space-y-6">
+              {/* Gold Prices at Analysis time */}
+              <div className="flex flex-col sm:flex-row justify-between gap-4 border-b border-gray-100 dark:border-gray-800 pb-5">
+                <div className="space-y-1">
+                  <span className="text-[10px] bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-100 dark:border-amber-900/40 px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                    SGE GOLD REPORT
+                  </span>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mt-1.5">
+                    沪金云端智能投资研报
+                  </h2>
+                  <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>研报生成时间: {new Date(sharedReportData.timestamp).toLocaleString()}</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-4">
+                  {sharedReportData.prices.au9999 && (
+                    <div className="bg-gray-50 dark:bg-gray-950 p-2.5 rounded-xl border border-gray-100 dark:border-gray-805 min-w-[100px] text-center">
+                      <span className="text-[9px] text-gray-400 block font-bold">AU99.99 报价</span>
+                      <span className="text-base font-bold font-mono text-gray-800 dark:text-gray-200 mt-0.5 block">
+                        {sharedReportData.prices.au9999.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  {sharedReportData.prices.autd && (
+                    <div className="bg-gray-50 dark:bg-gray-950 p-2.5 rounded-xl border border-gray-100 dark:border-gray-805 min-w-[100px] text-center">
+                      <span className="text-[9px] text-gray-400 block font-bold">AU(T+D) 报价</span>
+                      <span className="text-base font-bold font-mono text-gray-800 dark:text-gray-200 mt-0.5 block">
+                        {sharedReportData.prices.autd.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Report Body */}
+              <div className="bg-gray-50 dark:bg-gray-950 p-5 rounded-2xl border border-gray-100 dark:border-gray-855 overflow-hidden">
+                <SimpleMarkdown text={sharedReportData.analysis} />
+              </div>
+
+              {/* Risk warning */}
+              <div className="bg-amber-50/50 border border-amber-100/50 rounded-2xl p-4 text-[10px] text-amber-800 leading-relaxed">
+                <strong>风险警示:</strong> 本报告仅作为投资技术面与宏观面分析的交流分享，不构成具体建仓与投资建议。杠杆贵金属交易属于高风险投资品种，请独立评估并严控风险。
+              </div>
+            </div>
+          ) : null}
+        </main>
+
+        <footer className="border-t border-gray-100 bg-white py-6 text-center text-gray-400 text-[10px] font-bold tracking-widest uppercase mt-12">
+          <p>© 2026 沪金极简实时助手 · 云端研报分享系统</p>
+        </footer>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-[#F8F9FA] dark:bg-[#0f172a] text-[#1A1A1A] dark:text-gray-100 min-h-screen font-sans flex flex-col justify-between selection:bg-amber-100 selection:text-amber-900 transition-colors duration-300">

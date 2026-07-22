@@ -696,6 +696,32 @@ app.post('/api/gold/rules', (req, res) => {
   res.json({ success: true, count: storedLocalRulesState.rules.length });
 });
 
+// Local memory map for report shares
+const localShares = new Map();
+
+app.post('/api/gold/share', (req, res) => {
+  const shareId = Math.random().toString(36).substring(2, 10) + Date.now().toString(36).slice(-4);
+  const payload = {
+    id: shareId,
+    analysis: req.body.analysis,
+    timestamp: Date.now(),
+    prices: req.body.prices || {}
+  };
+  localShares.set(shareId, payload);
+  res.json({ success: true, shareId });
+});
+
+app.get('/api/gold/share', (req, res) => {
+  const shareId = req.query.id;
+  if (!shareId) return res.status(400).json({ error: 'Missing share id' });
+
+  const payload = localShares.get(shareId);
+  if (!payload) {
+    return res.status(404).json({ error: '分享的报告不存在或已过期' });
+  }
+  res.json(payload);
+});
+
 // Configure Vite middleware or static files
 async function setupServer() {
   if (process.env.NODE_ENV !== 'production') {

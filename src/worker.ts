@@ -718,6 +718,55 @@ app.post('/api/gold/rules', async (c) => {
   return c.json({ success: true, count: storedRuleState.rules.length });
 });
 
+// Global local shares fallback in worker namespace
+const localShares = new Map<string, any>();
+
+// Share report endpoint
+app.post('/api/gold/share', async (c) => {
+  const data = await c.req.json();
+  const shareId = Math.random().toString(36).substring(2, 10) + Date.now().toString(36).slice(-4);
+  const payload = {
+    id: shareId,
+    analysis: data.analysis,
+    timestamp: Date.now(),
+    prices: data.prices || {}
+  };
+
+  if (c.env.GOLD_RULES_KV) {
+    try {
+      await c.env.GOLD_RULES_KV.put(`share_report_${shareId}`, JSON.stringify(payload), {
+        expirationTtl: 2592000 // Expire in 30 days
+      });
+    } catch (e) {
+      console.error('KV put share report error:', e);
+    }
+  } else {
+    localShares.set(shareId, payload);
+  }
+
+  return c.json({ success: true, shareId });
+});
+
+// Retrieve shared report
+app.get('/api/gold/share', async (c) => {
+  const shareId = c.req.query('id');
+  if (!shareId) return c.json({ error: 'Missing share id' }, 400);
+
+  let payload: any = null;
+  if (c.env.GOLD_RULES_KV) {
+    try {
+      payload = await c.env.GOLD_RULES_KV.get(`share_report_${shareId}`, 'json');
+    } catch (e) {
+      console.error('KV get share report error:', e);
+    }
+  } else {
+    payload = localShares.get(shareId);
+  }
+
+  if (!payload) return c.json({ error: '分享的报告不存在或已过期' }, 404);
+  return c.json(payload);
+});
+
 // Background Cloudflare Cron monitor execution function
 async function checkBackgroundRulesAndSend(env: Bindings) {
   let ruleState: SavedRuleState | null = storedRuleState;

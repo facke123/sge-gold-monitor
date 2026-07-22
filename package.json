@@ -20,6 +20,7 @@
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "hono": "^4.12.30",
+    "html-to-image": "^1.11.13",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "nodemailer": "^9.0.3",
