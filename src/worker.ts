@@ -9,6 +9,12 @@ import nodemailer from 'nodemailer';
 
 type Bindings = {
   GEMINI_API_KEY?: string;
+  GEMINI_MODEL?: string;
+  DEEPSEEK_API_KEY?: string;
+  DEEPSEEK_MODEL?: string;
+  OPENAI_API_KEY?: string;
+  OPENAI_BASE_URL?: string;
+  OPENAI_MODEL?: string;
   SMTP_HOST?: string;
   SMTP_PORT?: string;
   SMTP_USER?: string;
@@ -248,6 +254,112 @@ function getAiClient(apiKey: string): GoogleGenAI {
   });
 }
 
+// Unified multi-model text generation supporting DeepSeek, OpenAI/Compat, and Gemini
+async function generateAiText(env: any, systemInstruction: string, prompt: string, responseFormatJson: boolean = false): Promise<string> {
+  // 1. Try DeepSeek
+  if (env.DEEPSEEK_API_KEY) {
+    try {
+      const response = await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.DEEPSEEK_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: env.DEEPSEEK_MODEL || 'deepseek-chat',
+          messages: [
+            { role: 'system', content: systemInstruction },
+            { role: 'user', content: prompt }
+          ],
+          response_format: responseFormatJson ? { type: 'json_object' } : undefined,
+          temperature: responseFormatJson ? 0.2 : 0.7,
+        })
+      });
+      if (response.ok) {
+        const json: any = await response.json();
+        const content = json.choices?.[0]?.message?.content;
+        if (content) return content;
+      }
+      console.warn(`DeepSeek API returned error status: ${response.status} ${response.statusText}`);
+    } catch (e) {
+      console.error('DeepSeek API failed, trying next provider:', e);
+    }
+  }
+
+  // 2. Try OpenAI or OpenAI-compatible endpoint
+  if (env.OPENAI_API_KEY) {
+    try {
+      const baseUrl = env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+      const response = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: env.OPENAI_MODEL || 'gpt-4o',
+          messages: [
+            { role: 'system', content: systemInstruction },
+            { role: 'user', content: prompt }
+          ],
+          response_format: responseFormatJson ? { type: 'json_object' } : undefined,
+          temperature: responseFormatJson ? 0.2 : 0.7,
+        })
+      });
+      if (response.ok) {
+        const json: any = await response.json();
+        const content = json.choices?.[0]?.message?.content;
+        if (content) return content;
+      }
+      console.warn(`OpenAI/Compatible API returned error status: ${response.status} ${response.statusText}`);
+    } catch (e) {
+      console.error('OpenAI/Compatible API failed, trying next provider:', e);
+    }
+  }
+
+  // 3. Try Gemini
+  if (env.GEMINI_API_KEY) {
+    try {
+      const ai = getAiClient(env.GEMINI_API_KEY);
+      if (responseFormatJson) {
+        const response = await ai.models.generateContent({
+          model: env.GEMINI_MODEL || 'gemini-3.5-flash',
+          contents: prompt,
+          config: {
+            systemInstruction,
+            temperature: 0.2,
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                trend: { type: Type.STRING },
+                reason: { type: Type.STRING },
+                confidence: { type: Type.NUMBER }
+              },
+              required: ["trend", "reason", "confidence"]
+            }
+          },
+        });
+        return response.text || '';
+      } else {
+        const response = await ai.models.generateContent({
+          model: env.GEMINI_MODEL || 'gemini-3.5-flash',
+          contents: prompt,
+          config: {
+            systemInstruction,
+            temperature: 0.7,
+          },
+        });
+        return response.text || '';
+      }
+    } catch (e) {
+      console.error('Gemini API failed:', e);
+    }
+  }
+
+  throw new Error('No AI provider API Keys (DEEPSEEK_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY) are configured or all attempts failed.');
+}
+
 // Shanghai Gold AI Market Analysis Endpoint
 app.post('/api/gold/analysis', async (c) => {
   const { au9999, autd } = await c.req.json();
@@ -298,15 +410,13 @@ app.post('/api/gold/analysis', async (c) => {
 
 > *注：因 API 请求达到每日配额限制，本报告已无缝切换至由系统内置上海金专用本地智能量化引擎为您实时分析生成，研判结果已深度拟合今日盘口成交与波动特征。*`;
 
-  const apiKey = c.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.warn('GEMINI_API_KEY environment variable is not configured. Falling back to local report.');
+  const hasApiKey = c.env.DEEPSEEK_API_KEY || c.env.OPENAI_API_KEY || c.env.GEMINI_API_KEY;
+  if (!hasApiKey) {
+    console.warn('No AI API Keys configured. Falling back to local report.');
     return c.json({ analysis: fallbackReport });
   }
 
   try {
-    const ai = getAiClient(apiKey);
-
     const systemInstruction = `你是一位顶级的中国黄金 market 高级分析师。专长于上海黄金交易所(SGE)的沪金实物黄金(AU99.99)和延期交收(AU T+D)分析。
 
 报告开头必须严格以以下 Markdown 格式输出（不允许使用任何占位符，必须使用实际提供的日期）：
@@ -328,29 +438,17 @@ app.post('/api/gold/analysis', async (c) => {
 
     const prompt = `当前沪金最新盘面数据：
 - 沪金 AU99.99: 最新价 ${au9999.price} 元/克，开盘价 ${au9999.open} 元/克，今日最高 ${au9999.high} 元/克，今日最低 ${au9999.low} 元/克，昨日收盘/结算价 ${au9999.lastSettlement} 元/克，涨跌幅 ${au9999.changePercent}%。
-- 沪金 AU(T+D): 最新价 ${autd.price} 元/克，开盘价 ${autd.open} 元/克，今日最高 ${autd.high} 元/克，今日最低 ${autd.low} 元/克，昨日收盘/结算价 ${autd.lastSettlement} 元/克，涨跌幅 ${autd.changePercent}%。
+- 沪金 AU(T+D): 最新价 ${autd.price} 元/克，开盘价 ${autd.open} 元/克 slow，今日最高 ${autd.high} 元/克，今日最低 ${autd.low} 元/克，昨日收盘/结算价 ${autd.lastSettlement} 元/克，涨跌幅 ${autd.changePercent}%。
 
 请基于这些实时指标和当前最新宏观局势（设定发布时间为 ${utcDateStr}，年份为2026年），进行全面深度的智能解析和策略判断。`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
-      contents: prompt,
-      config: {
-        systemInstruction,
-        temperature: 0.7,
-      },
-    });
-
-    const analysisText = response.text || '暂无法生成 AI 分析报告，请稍后再试。';
+    const analysisText = await generateAiText(c.env, systemInstruction, prompt);
+    if (!analysisText) {
+      throw new Error('AI returned empty analysis text.');
+    }
     return c.json({ analysis: analysisText });
   } catch (error: any) {
-    const isQuotaExceeded = error?.message?.includes('429') || error?.message?.includes('quota') || error?.message?.includes('Quota') || error?.message?.includes('limit');
-    
-    if (isQuotaExceeded) {
-      console.warn('[Warning] Gemini API free quota exhausted. Generating high-quality local analysis instead.');
-    } else {
-      console.error('AI Analysis Error (falling back to local engine):', error);
-    }
+    console.error('AI Analysis Error (falling back to local engine):', error);
     return c.json({ analysis: fallbackReport });
   }
 });
@@ -397,9 +495,9 @@ app.post('/api/gold/short-term', async (c) => {
     localReason = `多空双向均值振幅区间收窄在 ${(totalDiff >= 0 ? '+' : '')}${totalDiff.toFixed(2)} 元以内，盘口陷入缩量均线博弈，宜窄幅观望。`;
   }
 
-  const apiKey = c.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.warn('GEMINI_API_KEY environment variable is not configured. Falling back to local short-term trend.');
+  const hasApiKey = c.env.DEEPSEEK_API_KEY || c.env.OPENAI_API_KEY || c.env.GEMINI_API_KEY;
+  if (!hasApiKey) {
+    console.warn('No AI API Keys configured. Falling back to local short-term trend.');
     return c.json({
       trend: localTrend,
       reason: localReason,
@@ -409,10 +507,8 @@ app.post('/api/gold/short-term', async (c) => {
   }
 
   try {
-    const ai = getAiClient(apiKey);
-
-    const prompt = `你是一个资深黄金量化分析师。请基于以下最新的 5 个价格点波动数据，给出短期趋势研判。
-AU99.99 最新5个价格点: [${auLatest.join(', ')}]
+    const systemInstruction = '你是一个资深黄金量化分析师。请基于最新的 5 个价格点波动数据，给出短期趋势研判。';
+    const prompt = `AU99.99 最新5个价格点: [${auLatest.join(', ')}]
 AU(T+D) 最新5个价格点: [${tdLatest.join(', ')}]
 
 请进行快速分析并判定未来极短期的趋势（是‘看涨’、‘看跌’、还是‘震荡’），并给出1-2句极其精炼、专业的中文原因分析，以及你的判定置信度（百分比数字，如 75）。
@@ -423,44 +519,11 @@ AU(T+D) 最新5个价格点: [${tdLatest.join(', ')}]
   "confidence": 80
 }`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            trend: {
-              type: Type.STRING,
-              description: "必须是 '看涨'、'看跌' 或 '震荡' 之一",
-            },
-            reason: {
-              type: Type.STRING,
-              description: "基于最新5个价格波动的简短专业中文原因分析（1-2句）",
-            },
-            confidence: {
-              type: Type.NUMBER,
-              description: "判定置信度，百分比数值（如 75）",
-            }
-          },
-          required: ["trend", "reason", "confidence"]
-        },
-        temperature: 0.2,
-      },
-    });
-
-    const resultText = response.text || '{}';
+    const resultText = await generateAiText(c.env, systemInstruction, prompt, true);
     const parsed = JSON.parse(resultText.trim());
     return c.json(parsed);
   } catch (error: any) {
-    const isQuotaExceeded = error?.message?.includes('429') || error?.message?.includes('quota') || error?.message?.includes('Quota') || error?.message?.includes('limit');
-    
-    if (isQuotaExceeded) {
-      console.warn('[Warning] Gemini API free quota exhausted. Generating high-quality local short-term trend.');
-    } else {
-      console.error('AI Short-term Trend Error (falling back to local engine):', error);
-    }
+    console.error('AI Short-term Trend Error (falling back to local engine):', error);
 
     return c.json({
       trend: localTrend,
